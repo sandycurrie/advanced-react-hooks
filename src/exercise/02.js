@@ -28,7 +28,7 @@ function pokemonInfoReducer(state, action) {
   }
 }
 
-function useAsync(asyncCallback, initialState) {
+function useAsync(initialState) {
   const [state, dispatch] = React.useReducer(pokemonInfoReducer, {
     status: 'idle',
     data: null,
@@ -36,12 +36,7 @@ function useAsync(asyncCallback, initialState) {
     ...initialState,
   })
 
-  React.useEffect(() => {
-    const promise = asyncCallback()
-    if (!promise) {
-      return
-    }
-
+  const run = React.useCallback(promise => {
     dispatch({type: 'pending'})
     promise.then(
       data => {
@@ -51,23 +46,26 @@ function useAsync(asyncCallback, initialState) {
         dispatch({type: 'rejected', error})
       },
     )
+  }, []);
 
-  }, [asyncCallback])
-
-  return state;
+  return {...state, run};
 }
 
 function PokemonInfo({pokemonName}) {
-  const callback = useCallback(() => {
+  // 💰 destructuring this here now because it just felt weird to call this
+  // "state" still when it's also returning a function called "run" 🙃
+  const {data: pokemon, status, error, run} = useAsync({ status: pokemonName ? 'pending' : 'idle' })
+
+  React.useEffect(() => {
     if (!pokemonName) {
       return
     }
-    return fetchPokemon(pokemonName)
-  }, [pokemonName]);
-
-  const state = useAsync(callback, { status: pokemonName ? 'pending' : 'idle' }, [pokemonName])
-
-  const {data: pokemon, status, error} = state
+    // 💰 note the absense of `await` here. We're literally passing the promise
+    // to `run` so `useAsync` can attach it's own `.then` handler on it to keep
+    // track of the state of the promise.
+    const pokemonPromise = fetchPokemon(pokemonName)
+    run(pokemonPromise)
+  }, [pokemonName, run])
 
   switch (status) {
     case 'idle':
