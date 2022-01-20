@@ -9,7 +9,7 @@ import {
   PokemonInfoFallback,
   PokemonErrorBoundary,
 } from '../pokemon'
-import {useCallback} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useRef} from 'react'
 
 function pokemonInfoReducer(state, action) {
   switch (action.type) {
@@ -28,13 +28,34 @@ function pokemonInfoReducer(state, action) {
   }
 }
 
+function useSafeDispatch(unsafeDispatch) {
+  const mountedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    }
+  }, []);
+
+  const dispatch = useCallback((...args) => {
+    if (mountedRef.current) {
+      unsafeDispatch(...args);
+    }
+  }, []);
+
+  return dispatch;
+}
+
 function useAsync(initialState) {
-  const [state, dispatch] = React.useReducer(pokemonInfoReducer, {
+  const [state, unsafeDispatch] = React.useReducer(pokemonInfoReducer, {
     status: 'idle',
     data: null,
     error: null,
     ...initialState,
   })
+
+  const dispatch = useSafeDispatch(unsafeDispatch);
 
   const run = React.useCallback(promise => {
     dispatch({type: 'pending'})
